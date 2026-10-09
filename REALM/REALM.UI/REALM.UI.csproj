@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>false</UseWindowsForms>
+    <UseWPF>false</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>REALM.UI</AssemblyName>
+    <RootNamespace>REALM.UI</RootNamespace>
+    <Company>R.E.A.L.M.</Company>
+    <Product>R.E.A.L.M. UI</Product>
+  </PropertyGroup>
+</Project>

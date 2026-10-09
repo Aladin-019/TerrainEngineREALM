@@ -1,0 +1,11 @@
+# Project build output
+REALM.Native/build/
+REALM.UI/bin/
+REALM.UI/obj/
+
+# Editor folders
+.vs/
+.vscode/
+
+# Documentation 
+documentation/

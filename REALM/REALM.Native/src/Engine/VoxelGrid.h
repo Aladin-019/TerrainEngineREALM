@@ -1,0 +1,40 @@
+#pragma once
+
+#include <vector>
+#include "Voxel.h"
+
+namespace REALM::Engine
+{
+    class VoxelGrid
+    {
+    public:
+        VoxelGrid(int width, int height, int depth);
+
+        Voxel& GetVoxel(int x, int y, int z);
+        const Voxel& GetVoxel(int x, int y, int z) const;
+        bool HasVoxel(int x, int y, int z) const;
+        bool IsVisible(int x, int y, int z) const;
+        bool IsSolid(int x, int y, int z) const;
+        bool TrySpawnWater(int x, int y, int z);
+        void GenerateTerrain();
+        void UpdateSimulation(float deltaTime);
+        void UpdateSoil(int x, int y, int z);
+        void UpdateRock(int x, int y, int z);
+        void UpdateWater(int x, int y, int z);        
+
+
+        int Width() const { return width_; }
+        int Height() const { return height_; }
+        int Depth() const { return depth_; }
+
+    private:
+        bool InBounds(int x, int y, int z) const;
+        bool CanMoveTo(int x, int y, int z) const;
+        void MoveVoxel(int fromX, int fromY, int fromZ, int toX, int toY, int toZ);
+
+        int width_;
+        int height_;
+        int depth_;
+        std::vector<Voxel> voxels_;
+    };
+}
