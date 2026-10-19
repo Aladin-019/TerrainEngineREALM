@@ -16,12 +16,14 @@ namespace REALM::Engine
         bool IsVisible(int x, int y, int z) const;
         bool IsSolid(int x, int y, int z) const;
         bool TrySpawnWater(int x, int y, int z);
+        bool IsTerrainDirty() const { return terrainDirty_; }
+        void MarkTerrainDirty() { terrainDirty_ = true; }
+        void MarkTerrainClean() { terrainDirty_ = false; }
         void GenerateTerrain();
         void UpdateSimulation(float deltaTime);
         void UpdateSoil(int x, int y, int z);
         void UpdateRock(int x, int y, int z);
-        void UpdateWater(int x, int y, int z);        
-
+        void UpdateWater(int x, int y, int z);
 
         int Width() const { return width_; }
         int Height() const { return height_; }
@@ -35,6 +37,7 @@ namespace REALM::Engine
         int width_;
         int height_;
         int depth_;
+        bool terrainDirty_ = true;
         std::vector<Voxel> voxels_;
     };
 }

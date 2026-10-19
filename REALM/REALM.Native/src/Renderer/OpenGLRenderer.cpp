@@ -261,6 +261,8 @@ void OpenGLRenderer::BuildTerrainMesh()
             }
         }
     }
+
+    world_.MarkTerrainClean();
 }
 
 void OpenGLRenderer::AddFace(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d, const Vec3& color)
@@ -507,7 +509,8 @@ void OpenGLRenderer::RenderFrame()
     wglMakeCurrent(deviceContext_, renderContext_);
 
     world_.UpdateSimulation(1.0f / 60.0f);
-    BuildTerrainMesh();
+    if (world_.IsTerrainDirty())
+        BuildTerrainMesh();
 
     glViewport(0, 0, width_, height_);
     glClearColor(0.08f, 0.09f, 0.12f, 1.0f);

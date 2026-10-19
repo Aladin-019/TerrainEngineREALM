@@ -75,11 +75,14 @@ namespace REALM::Engine
             return false;
 
         GetVoxel(x, y, z) = CreateWaterVoxel();
+        MarkTerrainDirty();
         return true;
     }
 
     void VoxelGrid::GenerateTerrain()
     {
+        terrainDirty_ = true;
+
         const int baseDepth = std::max(1, height_ / 3);
         const int centerX = width_ / 2;
         const int centerZ = depth_ / 2;
@@ -235,6 +238,7 @@ namespace REALM::Engine
 
         GetVoxel(toX, toY, toZ) = moved;
         GetVoxel(fromX, fromY, fromZ) = empty;
+        MarkTerrainDirty();
     }
 
     bool VoxelGrid::InBounds(int x, int y, int z) const
