@@ -1,6 +1,10 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.21)
 
 project(TerrainEngineREALM LANGUAGES CXX)
+
+if(NOT WIN32)
+    message(FATAL_ERROR "The current renderer requires Windows.")
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,7 +23,8 @@ target_include_directories(TerrainEngineREALM PRIVATE
 )
 
 target_link_libraries(TerrainEngineREALM PRIVATE
-    ${OPENGL_LIBRARIES}
+    OpenGL::GL
+    OpenGL::GLU
     gdi32
     user32
 )
