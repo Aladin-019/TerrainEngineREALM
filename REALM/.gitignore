@@ -2,6 +2,8 @@
 REALM.Native/build/
 REALM.UI/bin/
 REALM.UI/obj/
+REALM.Native/vcpkg_installed/
+REALM.Native/CMakeUserPresets.json
 
 # Editor folders
 .vs/
