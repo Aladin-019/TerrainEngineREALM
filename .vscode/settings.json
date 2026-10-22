@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "C:/Users/aalad/OneDrive/Documents/Projects/TerrainEngine/REALM/REALM.Native"
+    "cmake.sourceDirectory": "${workspaceFolder}\\REALM\\REALM.Native",
+    "cmake.useCMakePresets": "always"
 }
