@@ -111,6 +111,25 @@ namespace REALM::Engine
         return false;
     }
 
+    bool VoxelGrid::TryEraseSurface(int x, int z)
+    {
+        if (!InBounds(x, 0, z))
+            return false;
+
+        for (int y = height_ - 1; y >= 0; --y)
+        {
+            Voxel& surface = GetVoxel(x, y, z);
+            if (!surface.IsVisible && !surface.IsSolid && !surface.HasVolume)
+                continue;
+
+            surface = Voxel{};
+            MarkTerrainDirty();
+            return true;
+        }
+
+        return false;
+    }
+
     void VoxelGrid::GenerateTerrain()
     {
         terrainDirty_ = true;

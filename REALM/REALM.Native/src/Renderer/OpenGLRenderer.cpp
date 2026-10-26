@@ -45,7 +45,7 @@ void OpenGLRenderer::SetBrushMode(BrushMode mode)
     brushMode_ = mode;
     brushActive_ = false;
     leftMouseDown_ = false;
-    soilBrushClock_.invalidate();
+    brushClock_.invalidate();
 }
 
 void OpenGLRenderer::initializeGL()
@@ -110,7 +110,7 @@ void OpenGLRenderer::mouseDoubleClickEvent(QMouseEvent* event)
     if (event->button() == Qt::LeftButton)
     {
         brushActive_ = brushMode_ != BrushMode::None;
-        soilBrushClock_.invalidate();
+        brushClock_.invalidate();
     }
 }
 
@@ -354,8 +354,8 @@ void OpenGLRenderer::ApplyBrushFromCursor()
         return;
     }
 
-    if (brushMode_ != BrushMode::Soil ||
-        (soilBrushClock_.isValid() && soilBrushClock_.elapsed() < 100))
+    if ((brushMode_ != BrushMode::Soil && brushMode_ != BrushMode::Erase) ||
+        (brushClock_.isValid() && brushClock_.elapsed() < 100))
         return;
 
     float worldX = 0.0f;
@@ -364,9 +364,13 @@ void OpenGLRenderer::ApplyBrushFromCursor()
     if (!FindWorldPointUnderCursor(mouseX_, mouseY_, worldX, worldY, worldZ))
         return;
 
-    if (world_.TryAddSoilAboveSurface(
-            static_cast<int>(std::floor(worldX)), static_cast<int>(std::floor(worldZ))))
-        soilBrushClock_.start();
+    const int x = static_cast<int>(std::floor(worldX));
+    const int z = static_cast<int>(std::floor(worldZ));
+    const bool changed = brushMode_ == BrushMode::Soil
+        ? world_.TryAddSoilAboveSurface(x, z)
+        : world_.TryEraseSurface(x, z);
+    if (changed)
+        brushClock_.start();
 }
 
 void OpenGLRenderer::EmitWaterFromCursor()

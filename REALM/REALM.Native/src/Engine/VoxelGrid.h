@@ -17,6 +17,7 @@ namespace REALM::Engine
         bool IsSolid(int x, int y, int z) const;
         bool TrySpawnWater(int x, int y, int z);
         bool TryAddSoilAboveSurface(int x, int z);
+        bool TryEraseSurface(int x, int z);
         bool IsTerrainDirty() const { return terrainDirty_; }
         void MarkTerrainDirty() { terrainDirty_ = true; }
         void MarkTerrainClean() { terrainDirty_ = false; }

@@ -16,7 +16,8 @@ public:
     {
         None,
         Soil,
-        Water
+        Water,
+        Erase
     };
 
     explicit OpenGLRenderer(QWidget* parent = nullptr);
@@ -67,7 +68,7 @@ private:
     static Vec3 GetColorForType(int type, float height);
     QTimer frameTimer_;
     QElapsedTimer frameClock_;
-    QElapsedTimer soilBrushClock_;
+    QElapsedTimer brushClock_;
     QSet<int> pressedKeys_;
     float yaw_ = 45.0f;
     float pitch_ = 15.0f;

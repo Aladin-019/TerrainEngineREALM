@@ -30,6 +30,7 @@ int main(int argc, char* argv[])
     brushSelector->addItem(QStringLiteral("Navigate"), static_cast<int>(OpenGLRenderer::BrushMode::None));
     brushSelector->addItem(QStringLiteral("Soil"), static_cast<int>(OpenGLRenderer::BrushMode::Soil));
     brushSelector->addItem(QStringLiteral("Water"), static_cast<int>(OpenGLRenderer::BrushMode::Water));
+    brushSelector->addItem(QStringLiteral("Erase"), static_cast<int>(OpenGLRenderer::BrushMode::Erase));
     brushSelector->setToolTip(QStringLiteral("Select a brush, then double-click, hold and drag over terrain"));
     brushToolbar->addWidget(brushSelector);
     QObject::connect(brushSelector, &QComboBox::currentIndexChanged, viewport,
