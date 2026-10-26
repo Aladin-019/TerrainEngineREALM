@@ -49,4 +49,11 @@ if(BUILD_TESTING)
     )
     target_include_directories(VoxelGridBrushTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     add_test(NAME VoxelGridBrushTests COMMAND VoxelGridBrushTests)
+    
+    add_executable(VoxelGridEraseTests
+        tests/VoxelGridEraseTests.cpp
+        src/Engine/VoxelGrid.cpp
+    )
+    target_include_directories(VoxelGridEraseTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    add_test(NAME VoxelGridEraseTests COMMAND VoxelGridEraseTests)
 endif()
