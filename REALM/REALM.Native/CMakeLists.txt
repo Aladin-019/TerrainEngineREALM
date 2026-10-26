@@ -11,8 +11,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(OpenGL REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets)
 
-add_executable(TerrainEngineREALM
+qt_add_executable(TerrainEngineREALM
     src/App/main.cpp
     src/Engine/VoxelGrid.cpp
     src/Renderer/OpenGLRenderer.cpp
@@ -23,8 +24,19 @@ target_include_directories(TerrainEngineREALM PRIVATE
 )
 
 target_link_libraries(TerrainEngineREALM PRIVATE
+    Qt6::Widgets
+    Qt6::OpenGLWidgets
     OpenGL::GL
     OpenGL::GLU
-    gdi32
-    user32
+)
+
+set_target_properties(TerrainEngineREALM PROPERTIES WIN32_EXECUTABLE TRUE)
+
+add_custom_command(TARGET TerrainEngineREALM POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "$<TARGET_FILE_DIR:TerrainEngineREALM>/platforms"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:Qt6::QWindowsIntegrationPlugin>"
+        "$<TARGET_FILE_DIR:TerrainEngineREALM>/platforms"
+    VERBATIM
 )
