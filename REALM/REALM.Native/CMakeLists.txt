@@ -40,3 +40,13 @@ add_custom_command(TARGET TerrainEngineREALM POST_BUILD
         "$<TARGET_FILE_DIR:TerrainEngineREALM>/platforms"
     VERBATIM
 )
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(VoxelGridBrushTests
+        tests/VoxelGridBrushTests.cpp
+        src/Engine/VoxelGrid.cpp
+    )
+    target_include_directories(VoxelGridBrushTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    add_test(NAME VoxelGridBrushTests COMMAND VoxelGridBrushTests)
+endif()
