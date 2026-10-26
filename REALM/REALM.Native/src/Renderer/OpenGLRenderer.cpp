@@ -1,16 +1,24 @@
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+
 #include "OpenGLRenderer.h"
+
+#include <QFocusEvent>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QOpenGLContext>
+#include <QWheelEvent>
 
 #include <GL/gl.h>
 #include <GL/glu.h>
 
 #include <algorithm>
 #include <cmath>
-#include <stdexcept>
 
 namespace
 {
-    OpenGLRenderer* g_rendererInstance = nullptr;
-
     float ClampFloat(float value, float minValue, float maxValue)
     {
         if (value < minValue)
@@ -21,214 +29,94 @@ namespace
     }
 }
 
-// Window procedure callback attached to and used by window instance (see Initialize())
-LRESULT CALLBACK OpenGLRenderer::WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+OpenGLRenderer::OpenGLRenderer(QWidget* parent)
+    : QOpenGLWidget(parent), world_(128, 64, 128)
 {
-    switch (message)
-    {
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        return 0;
-    case WM_CLOSE:
-        DestroyWindow(hwnd);
-        return 0;
-    case WM_KEYDOWN:
-        if (g_rendererInstance && wParam < 256)
-            g_rendererInstance->keyState_[wParam] = true;
-        if (wParam == VK_ESCAPE)
-            PostQuitMessage(0);
-        return 0;
-    case WM_KEYUP:
-        if (g_rendererInstance && wParam < 256)
-            g_rendererInstance->keyState_[wParam] = false;
-        return 0;
-    case WM_MOUSEMOVE:
-        if (g_rendererInstance)
-        {
-            g_rendererInstance->mouseX_ = GET_X_LPARAM(lParam);
-            g_rendererInstance->mouseY_ = GET_Y_LPARAM(lParam);
-        }
-        return 0;
-    case WM_LBUTTONDOWN:
-        if (g_rendererInstance)
-            g_rendererInstance->leftMouseDown_ = true;
-        return 0;
-    case WM_LBUTTONDBLCLK:
-        if (g_rendererInstance)
-        {
-            g_rendererInstance->leftMouseDown_ = true;
-            g_rendererInstance->emitWaterActive_ = true;
-            g_rendererInstance->mouseX_ = GET_X_LPARAM(lParam);
-            g_rendererInstance->mouseY_ = GET_Y_LPARAM(lParam);
-            SetCapture(hwnd);
-        }
-        return 0;
-    case WM_LBUTTONUP:
-        if (g_rendererInstance)
-        {
-            g_rendererInstance->leftMouseDown_ = false;
-            g_rendererInstance->emitWaterActive_ = false;
-            ReleaseCapture();
-        }
-        return 0;
-    case WM_CAPTURECHANGED:
-        if (g_rendererInstance)
-        {
-            g_rendererInstance->leftMouseDown_ = false;
-            g_rendererInstance->emitWaterActive_ = false;
-        }
-        return 0;
-    case WM_MOUSEWHEEL:
-        if (g_rendererInstance)
-        {
-            const short wheelDelta = static_cast<short>(HIWORD(wParam));
-            g_rendererInstance->orbitDistance_ -= wheelDelta / 120.0f * 2.5f;
-            g_rendererInstance->orbitDistance_ = std::max(8.0f, std::min(g_rendererInstance->orbitDistance_, 80.0f));
-        }
-        return 0;
-    default:
-        // defualt windows procedure
-        return DefWindowProc(hwnd, message, wParam, lParam);
-    }
+    setFocusPolicy(Qt::StrongFocus);
+    setMouseTracking(true);
+    frameTimer_.setInterval(16);
+    frameTimer_.setTimerType(Qt::PreciseTimer);
+    connect(&frameTimer_, &QTimer::timeout, this, [this] { update(); });
+    frameTimer_.start();
 }
 
-OpenGLRenderer::OpenGLRenderer(int width, int height, const std::string& title)
-    : width_(width), height_(height), title_(title), world_(128, 64, 128)
+void OpenGLRenderer::initializeGL()
 {
-    g_rendererInstance = this;
-
-    if (!Initialize())
+    if (context()->isOpenGLES() ||
+        context()->format().profile() == QSurfaceFormat::CoreProfile)
     {
-        throw std::runtime_error("Failed to initialize native OpenGL renderer.");
+        qFatal("The terrain renderer requires desktop OpenGL compatibility support.");
     }
-}
-
-OpenGLRenderer::~OpenGLRenderer()
-{
-    Shutdown();
-}
-
-bool OpenGLRenderer::Initialize()
-{
-    // Program instance handle
-    HINSTANCE instance = GetModuleHandle(nullptr);
-
-    // Define window class
-    WNDCLASSA wc = {};
-    wc.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC | CS_DBLCLKS;
-    wc.lpfnWndProc = WindowProc; // register window procedure callback
-    wc.hInstance = instance;     // link program
-    wc.hbrBackground = nullptr;
-    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc.lpszClassName = "GeoSandboxNativeWindowClass";
-
-    // Register window class
-    if (!RegisterClassA(&wc))
-    {
-        return false;
-    }
-
-    // Create window and store handle to it => HWND window_
-    window_ = CreateWindowExA(
-        0,
-        "GeoSandboxNativeWindowClass",
-        title_.c_str(),
-        WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        width_,
-        height_,
-        nullptr,
-        nullptr,
-        instance,
-        nullptr);
-
-    if (!window_)
-    {
-        return false;
-    }
-
-    // Get device context for window
-    deviceContext_ = GetDC(window_);
-    if (!deviceContext_)
-    {
-        DestroyWindow(window_);
-        window_ = nullptr;
-        return false;
-    }
-
-    // Define pixel format descriptor type
-    PIXELFORMATDESCRIPTOR pfd = {};
-    pfd.nSize = sizeof(PIXELFORMATDESCRIPTOR);
-    pfd.nVersion = 1;
-    pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-    pfd.iPixelType = PFD_TYPE_RGBA;
-    pfd.cColorBits = 32;
-    pfd.cDepthBits = 24;
-    pfd.iLayerType = PFD_MAIN_PLANE;
-
-    // Get pixel format from current setup and attach it to device context
-    int pixelFormat = ChoosePixelFormat(deviceContext_, &pfd);
-    if (pixelFormat == 0 || !SetPixelFormat(deviceContext_, pixelFormat, &pfd))
-    {
-        ReleaseDC(window_, deviceContext_);
-        DestroyWindow(window_);
-        window_ = nullptr;
-        return false;
-    }
-
-    // Create window render context from window device context 
-    renderContext_ = wglCreateContext(deviceContext_);
-    if (!renderContext_)
-    {
-        ReleaseDC(window_, deviceContext_);
-        DestroyWindow(window_);
-        window_ = nullptr;
-        return false;
-    }
-
-    // Bind the OpenGL rendering context to the window’s device
-    // context on the current thread
-    if (!wglMakeCurrent(deviceContext_, renderContext_))
-    {
-        wglDeleteContext(renderContext_);
-        ReleaseDC(window_, deviceContext_);
-        DestroyWindow(window_);
-        window_ = nullptr;
-        return false;
-    }
-
-    ShowWindow(window_, SW_SHOW);
-    UpdateWindow(window_);
 
     glClearColor(0.08f, 0.09f, 0.12f, 1.0f);
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE);
-    return true;
+    frameClock_.start();
 }
 
-void OpenGLRenderer::Shutdown()
+void OpenGLRenderer::keyPressEvent(QKeyEvent* event)
 {
-    if (renderContext_)
-    {
-        wglMakeCurrent(nullptr, nullptr);
-        wglDeleteContext(renderContext_);
-        renderContext_ = nullptr;
-    }
+    if (event->key() == Qt::Key_Escape)
+        window()->close();
+    else
+        pressedKeys_.insert(event->key());
+    event->accept();
+}
 
-    if (deviceContext_ && window_)
-    {
-        ReleaseDC(window_, deviceContext_);
-        deviceContext_ = nullptr;
-    }
+void OpenGLRenderer::keyReleaseEvent(QKeyEvent* event)
+{
+    if (!event->isAutoRepeat())
+        pressedKeys_.remove(event->key());
+    event->accept();
+}
 
-    if (window_)
-    {
-        DestroyWindow(window_);
-        window_ = nullptr;
-    }
+void OpenGLRenderer::focusOutEvent(QFocusEvent* event)
+{
+    pressedKeys_.clear();
+    leftMouseDown_ = false;
+    emitWaterActive_ = false;
+    QOpenGLWidget::focusOutEvent(event);
+}
 
-    UnregisterClassA("GeoSandboxNativeWindowClass", GetModuleHandle(nullptr));
+void OpenGLRenderer::mouseMoveEvent(QMouseEvent* event)
+{
+    mouseX_ = static_cast<int>(event->position().x() * devicePixelRatioF());
+    mouseY_ = static_cast<int>(event->position().y() * devicePixelRatioF());
+    event->accept();
+}
+
+void OpenGLRenderer::mousePressEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton)
+    {
+        leftMouseDown_ = true;
+        setFocus();
+    }
+    mouseMoveEvent(event);
+}
+
+void OpenGLRenderer::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    mousePressEvent(event);
+    if (event->button() == Qt::LeftButton)
+        emitWaterActive_ = true;
+}
+
+void OpenGLRenderer::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton)
+    {
+        leftMouseDown_ = false;
+        emitWaterActive_ = false;
+    }
+    event->accept();
+}
+
+void OpenGLRenderer::wheelEvent(QWheelEvent* event)
+{
+    orbitDistance_ = ClampFloat(
+        orbitDistance_ - event->angleDelta().y() / 120.0f * 3.75f, 8.0f, 260.0f);
+    event->accept();
 }
 
 void OpenGLRenderer::BuildTerrainMesh()
@@ -365,20 +253,20 @@ OpenGLRenderer::Vec3 OpenGLRenderer::GetColorForType(int type, float height)
 
 void OpenGLRenderer::UpdateCamera(float deltaSeconds)
 {
-    const float turnSpeed = 8.0f * deltaSeconds;
-    const float zoomSpeed = 5.0f * deltaSeconds;
+    const float turnSpeed = 12.0f * deltaSeconds;
+    const float zoomSpeed = 15.0f * deltaSeconds;
 
-    if (keyState_['A'] || keyState_['a'])
+    if (pressedKeys_.contains(Qt::Key_A))
         yaw_ += turnSpeed;
-    if (keyState_['D'] || keyState_['d'])
+    if (pressedKeys_.contains(Qt::Key_D))
         yaw_ -= turnSpeed;
-    if (keyState_['W'] || keyState_['w'])
+    if (pressedKeys_.contains(Qt::Key_W))
         pitch_ -= turnSpeed;
-    if (keyState_['S'] || keyState_['s'])
+    if (pressedKeys_.contains(Qt::Key_S))
         pitch_ += turnSpeed;
-    if (keyState_[VK_UP])
+    if (pressedKeys_.contains(Qt::Key_Up))
         orbitDistance_ -= zoomSpeed;
-    if (keyState_[VK_DOWN])
+    if (pressedKeys_.contains(Qt::Key_Down))
         orbitDistance_ += zoomSpeed;
 
     orbitDistance_ = ClampFloat(orbitDistance_, 8.0f, 260.0f);
@@ -397,38 +285,6 @@ void OpenGLRenderer::UpdateCamera(float deltaSeconds)
     cameraZ_ = targetZ + std::sin(yawRad) * std::cos(pitchRad) * radius;
 }
 
-void OpenGLRenderer::Run()
-{
-    MSG message = {};
-    DWORD lastTick = GetTickCount();
-
-    while (running_)
-    {
-        while (PeekMessage(&message, nullptr, 0, 0, PM_REMOVE))
-        {
-            if (message.message == WM_QUIT)
-            {
-                running_ = false;
-                break;
-            }
-
-            TranslateMessage(&message);
-            DispatchMessage(&message);
-        }
-
-        if (running_)
-        {
-            const DWORD currentTick = GetTickCount();
-            const float deltaSeconds = (currentTick - lastTick) / 1000.0f;
-            lastTick = currentTick;
-
-            UpdateCamera(deltaSeconds);
-            RenderFrame();
-            Sleep(16);
-        }
-    }
-}
-
 bool OpenGLRenderer::FindWorldPointUnderCursor(int mouseX, int mouseY, float& outX, float& outY, float& outZ) const
 {
     GLdouble model[16] = {};
@@ -444,7 +300,7 @@ bool OpenGLRenderer::FindWorldPointUnderCursor(int mouseX, int mouseY, float& ou
     const int winY = viewport[3] - clampedMouseY - 1;
 
     GLfloat depth = 1.0f;
-    glReadBuffer(GL_BACK);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
     glReadPixels(clampedMouseX, winY, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
 
     if (depth >= 0.9999f)
@@ -499,26 +355,24 @@ void OpenGLRenderer::EmitWaterFromCursor()
     }
 }
 
-void OpenGLRenderer::RenderFrame()
+void OpenGLRenderer::paintGL()
 {
-    if (!window_ || !deviceContext_ || !renderContext_)
-    {
-        return;
-    }
-
-    wglMakeCurrent(deviceContext_, renderContext_);
+    const float deltaSeconds = std::min(frameClock_.restart() / 1000.0f, 0.1f);
+    UpdateCamera(deltaSeconds);
 
     world_.UpdateSimulation(1.0f / 60.0f);
     if (world_.IsTerrainDirty())
         BuildTerrainMesh();
 
-    glViewport(0, 0, width_, height_);
+    const int pixelWidth = std::max(1, static_cast<int>(width() * devicePixelRatioF()));
+    const int pixelHeight = std::max(1, static_cast<int>(height() * devicePixelRatioF()));
+    glViewport(0, 0, pixelWidth, pixelHeight);
     glClearColor(0.08f, 0.09f, 0.12f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(60.0, static_cast<double>(width_) / static_cast<double>(height_), 0.1, 500.0);
+    gluPerspective(60.0, static_cast<double>(pixelWidth) / pixelHeight, 0.1, 500.0);
 
     const float targetX = static_cast<float>(world_.Width()) * 0.5f;
     const float targetY = static_cast<float>(world_.Height()) * 0.35f;
@@ -540,6 +394,4 @@ void OpenGLRenderer::RenderFrame()
     glEnd();
 
     EmitWaterFromCursor();
-
-    SwapBuffers(deviceContext_);
 }

@@ -1,26 +1,30 @@
 #pragma once
 
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
+#include <QElapsedTimer>
+#include <QOpenGLWidget>
+#include <QSet>
+#include <QTimer>
 
-#include <string>
 #include <vector>
-
-#include <windows.h>
-#include <windowsx.h>
 
 #include "../Engine/VoxelGrid.h"
 
-class OpenGLRenderer
+class OpenGLRenderer : public QOpenGLWidget
 {
 public:
-    OpenGLRenderer(int width, int height, const std::string& title);
-    ~OpenGLRenderer();
+    explicit OpenGLRenderer(QWidget* parent = nullptr);
 
-    void Run();
-    void RenderFrame();
-    void UpdateCamera(float deltaSeconds);
+protected:
+    void initializeGL() override;
+    void paintGL() override;
+    void keyPressEvent(QKeyEvent* event) override;
+    void keyReleaseEvent(QKeyEvent* event) override;
+    void focusOutEvent(QFocusEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;
 
 private:
     struct Vec3
@@ -40,8 +44,7 @@ private:
         float b = 0.0f;
     };
 
-    bool Initialize();
-    void Shutdown();
+    void UpdateCamera(float deltaSeconds);
     void BuildTerrainMesh();
     void EmitWaterFromCursor();
     bool FindWorldPointUnderCursor(int mouseX, int mouseY, float& outX, float& outY, float& outZ) const;
@@ -53,16 +56,9 @@ private:
     void AddFaceFront(int x, int y, int z);
     void AddFaceBack(int x, int y, int z);
     static Vec3 GetColorForType(int type, float height);
-    static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
-
-    HWND window_ = nullptr;
-    HDC deviceContext_ = nullptr;
-    HGLRC renderContext_ = nullptr;
-    int width_ = 0;
-    int height_ = 0;
-    std::string title_;
-    bool running_ = true;
-    bool keyState_[256] = {};
+    QTimer frameTimer_;
+    QElapsedTimer frameClock_;
+    QSet<int> pressedKeys_;
     float yaw_ = 45.0f;
     float pitch_ = 15.0f;
     float orbitDistance_ = 200.0f;
