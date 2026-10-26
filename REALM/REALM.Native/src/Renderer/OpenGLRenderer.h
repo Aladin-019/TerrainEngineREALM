@@ -12,7 +12,15 @@
 class OpenGLRenderer : public QOpenGLWidget
 {
 public:
+    enum class BrushMode
+    {
+        None,
+        Soil,
+        Water
+    };
+
     explicit OpenGLRenderer(QWidget* parent = nullptr);
+    void SetBrushMode(BrushMode mode);
 
 protected:
     void initializeGL() override;
@@ -47,6 +55,7 @@ private:
     void UpdateCamera(float deltaSeconds);
     void BuildTerrainMesh();
     void EmitWaterFromCursor();
+    void ApplyBrushFromCursor();
     bool FindWorldPointUnderCursor(int mouseX, int mouseY, float& outX, float& outY, float& outZ) const;
     void AddFace(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d, const Vec3& color);
     void AddFaceRight(int x, int y, int z);
@@ -58,6 +67,7 @@ private:
     static Vec3 GetColorForType(int type, float height);
     QTimer frameTimer_;
     QElapsedTimer frameClock_;
+    QElapsedTimer soilBrushClock_;
     QSet<int> pressedKeys_;
     float yaw_ = 45.0f;
     float pitch_ = 15.0f;
@@ -65,7 +75,8 @@ private:
     float cameraX_ = 0.0f;
     float cameraY_ = 10.0f;
     float cameraZ_ = 28.0f;
-    bool emitWaterActive_ = false;
+    BrushMode brushMode_ = BrushMode::None;
+    bool brushActive_ = false;
     bool leftMouseDown_ = false;
     int mouseX_ = 0;
     int mouseY_ = 0;

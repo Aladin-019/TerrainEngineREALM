@@ -79,6 +79,38 @@ namespace REALM::Engine
         return true;
     }
 
+    bool VoxelGrid::TryAddSoilAboveSurface(int x, int z)
+    {
+        if (!InBounds(x, 0, z))
+            return false;
+
+        for (int y = height_ - 1; y >= 0; --y)
+        {
+            const Voxel& surface = GetVoxel(x, y, z);
+            if (!surface.IsVisible && !surface.IsSolid && !surface.HasVolume)
+                continue;
+
+            if (!CanMoveTo(x, y + 1, z))
+                return false;
+
+            Voxel soil;
+            soil.Material = CellMaterial::Soil;
+            soil.IsVisible = true;
+            soil.IsSolid = true;
+            soil.HasVolume = true;
+            soil.Density = 1.0f;
+            soil.Moisture = 0.15f;
+            soil.Temperature = 10.0f;
+            soil.Porosity = 0.2f;
+            soil.Compressibility = 0.15f;
+            GetVoxel(x, y + 1, z) = soil;
+            MarkTerrainDirty();
+            return true;
+        }
+
+        return false;
+    }
+
     void VoxelGrid::GenerateTerrain()
     {
         terrainDirty_ = true;

@@ -40,6 +40,14 @@ OpenGLRenderer::OpenGLRenderer(QWidget* parent)
     frameTimer_.start();
 }
 
+void OpenGLRenderer::SetBrushMode(BrushMode mode)
+{
+    brushMode_ = mode;
+    brushActive_ = false;
+    leftMouseDown_ = false;
+    soilBrushClock_.invalidate();
+}
+
 void OpenGLRenderer::initializeGL()
 {
     if (context()->isOpenGLES() ||
@@ -74,7 +82,7 @@ void OpenGLRenderer::focusOutEvent(QFocusEvent* event)
 {
     pressedKeys_.clear();
     leftMouseDown_ = false;
-    emitWaterActive_ = false;
+    brushActive_ = false;
     QOpenGLWidget::focusOutEvent(event);
 }
 
@@ -89,6 +97,7 @@ void OpenGLRenderer::mousePressEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::LeftButton)
     {
+        brushActive_ = false;
         leftMouseDown_ = true;
         setFocus();
     }
@@ -99,7 +108,10 @@ void OpenGLRenderer::mouseDoubleClickEvent(QMouseEvent* event)
 {
     mousePressEvent(event);
     if (event->button() == Qt::LeftButton)
-        emitWaterActive_ = true;
+    {
+        brushActive_ = brushMode_ != BrushMode::None;
+        soilBrushClock_.invalidate();
+    }
 }
 
 void OpenGLRenderer::mouseReleaseEvent(QMouseEvent* event)
@@ -107,7 +119,7 @@ void OpenGLRenderer::mouseReleaseEvent(QMouseEvent* event)
     if (event->button() == Qt::LeftButton)
     {
         leftMouseDown_ = false;
-        emitWaterActive_ = false;
+        brushActive_ = false;
     }
     event->accept();
 }
@@ -295,6 +307,9 @@ bool OpenGLRenderer::FindWorldPointUnderCursor(int mouseX, int mouseY, float& ou
     glGetDoublev(GL_PROJECTION_MATRIX, projection);
     glGetIntegerv(GL_VIEWPORT, viewport);
 
+    if (mouseX < 0 || mouseX >= viewport[2] || mouseY < 0 || mouseY >= viewport[3])
+        return false;
+
     const int clampedMouseX = std::max(0, std::min(mouseX, viewport[2] - 1));
     const int clampedMouseY = std::max(0, std::min(mouseY, viewport[3] - 1));
     const int winY = viewport[3] - clampedMouseY - 1;
@@ -328,11 +343,34 @@ bool OpenGLRenderer::FindWorldPointUnderCursor(int mouseX, int mouseY, float& ou
     return true;
 }
 
-void OpenGLRenderer::EmitWaterFromCursor()
+void OpenGLRenderer::ApplyBrushFromCursor()
 {
-    if (!emitWaterActive_ || !leftMouseDown_)
+    if (!brushActive_ || !leftMouseDown_)
         return;
 
+    if (brushMode_ == BrushMode::Water)
+    {
+        EmitWaterFromCursor();
+        return;
+    }
+
+    if (brushMode_ != BrushMode::Soil ||
+        (soilBrushClock_.isValid() && soilBrushClock_.elapsed() < 100))
+        return;
+
+    float worldX = 0.0f;
+    float worldY = 0.0f;
+    float worldZ = 0.0f;
+    if (!FindWorldPointUnderCursor(mouseX_, mouseY_, worldX, worldY, worldZ))
+        return;
+
+    if (world_.TryAddSoilAboveSurface(
+            static_cast<int>(std::floor(worldX)), static_cast<int>(std::floor(worldZ))))
+        soilBrushClock_.start();
+}
+
+void OpenGLRenderer::EmitWaterFromCursor()
+{
     float worldX = 0.0f;
     float worldY = 0.0f;
     float worldZ = 0.0f;
@@ -393,5 +431,5 @@ void OpenGLRenderer::paintGL()
     }
     glEnd();
 
-    EmitWaterFromCursor();
+    ApplyBrushFromCursor();
 }
