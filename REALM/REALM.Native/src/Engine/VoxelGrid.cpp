@@ -130,6 +130,65 @@ namespace REALM::Engine
         return false;
     }
 
+    bool VoxelGrid::TryGetSurfaceHeight(int x, int z, float& height) const
+    {
+        if (!InBounds(x, 0, z))
+            return false;
+
+        for (int y = height_ - 1; y >= 0; --y)
+        {
+            const Voxel& voxel = GetVoxel(x, y, z);
+            if (voxel.IsVisible || voxel.IsSolid || voxel.HasVolume)
+            {
+                height = static_cast<float>(y + 1);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool VoxelGrid::TryEraseSphere(float centerX, float centerZ, int radius)
+    {
+        if (!std::isfinite(centerX) || !std::isfinite(centerZ) ||
+            centerX < 0.0f || centerX >= width_ || centerZ < 0.0f || centerZ >= depth_ ||
+            radius < MinEraseRadius || radius > MaxEraseRadius)
+            return false;
+
+        float centerY = 0.0f;
+        if (!TryGetSurfaceHeight(static_cast<int>(centerX), static_cast<int>(centerZ), centerY))
+            return false;
+
+        const int minX = std::max(0, static_cast<int>(std::floor(centerX - radius)));
+        const int maxX = std::min(width_ - 1, static_cast<int>(std::floor(centerX + radius)));
+        const int minY = std::max(0, static_cast<int>(std::floor(centerY - radius)));
+        const int maxY = std::min(height_ - 1, static_cast<int>(std::floor(centerY + radius)));
+        const int minZ = std::max(0, static_cast<int>(std::floor(centerZ - radius)));
+        const int maxZ = std::min(depth_ - 1, static_cast<int>(std::floor(centerZ + radius)));
+        const float radiusSquared = static_cast<float>(radius * radius);
+        bool changed = false;
+        for (int x = minX; x <= maxX; ++x)
+            for (int y = minY; y <= maxY; ++y)
+                for (int z = minZ; z <= maxZ; ++z)
+                {
+                    const float dx = x + 0.5f - centerX;
+                    const float dy = y + 0.5f - centerY;
+                    const float dz = z + 0.5f - centerZ;
+                    if (dx * dx + dy * dy + dz * dz > radiusSquared)
+                        continue;
+
+                    Voxel& voxel = GetVoxel(x, y, z);
+                    if (!voxel.IsVisible && !voxel.IsSolid && !voxel.HasVolume)
+                        continue;
+
+                    voxel = Voxel{};
+                    changed = true;
+                }
+
+        if (changed)
+            MarkTerrainDirty();
+        return changed;
+    }
+
     void VoxelGrid::GenerateTerrain()
     {
         terrainDirty_ = true;

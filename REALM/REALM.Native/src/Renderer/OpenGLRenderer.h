@@ -2,6 +2,7 @@
 
 #include <QElapsedTimer>
 #include <QOpenGLWidget>
+#include <QPointF>
 #include <QSet>
 #include <QTimer>
 
@@ -22,6 +23,8 @@ public:
 
     explicit OpenGLRenderer(QWidget* parent = nullptr);
     void SetBrushMode(BrushMode mode);
+    void SetEraseRadius(int radius);
+    int EraseRadius() const { return eraseRadius_; }
 
 protected:
     void initializeGL() override;
@@ -34,6 +37,7 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
+    void leaveEvent(QEvent* event) override;
 
 private:
     struct Vec3
@@ -57,7 +61,9 @@ private:
     void BuildTerrainMesh();
     void EmitWaterFromCursor();
     void ApplyBrushFromCursor();
-    bool FindWorldPointUnderCursor(int mouseX, int mouseY, float& outX, float& outY, float& outZ) const;
+    bool FindWorldPointUnderCursor(float& outX, float& outY, float& outZ) const;
+    bool FindEraseCenter(Vec3& center) const;
+    void DrawErasePreview(const Vec3& center);
     void AddFace(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d, const Vec3& color);
     void AddFaceRight(int x, int y, int z);
     void AddFaceLeft(int x, int y, int z);
@@ -79,8 +85,9 @@ private:
     BrushMode brushMode_ = BrushMode::None;
     bool brushActive_ = false;
     bool leftMouseDown_ = false;
-    int mouseX_ = 0;
-    int mouseY_ = 0;
+    QPointF mousePosition_;
+    bool cursorInViewport_ = false;
+    int eraseRadius_ = 3;
     REALM::Engine::VoxelGrid world_;
     std::vector<Vertex> terrainVertices_;
     std::vector<unsigned int> terrainIndices_;

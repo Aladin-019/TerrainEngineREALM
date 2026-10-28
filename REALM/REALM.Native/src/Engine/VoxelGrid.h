@@ -8,6 +8,9 @@ namespace REALM::Engine
     class VoxelGrid
     {
     public:
+        static constexpr int MinEraseRadius = 1;
+        static constexpr int MaxEraseRadius = 16;
+
         VoxelGrid(int width, int height, int depth);
 
         Voxel& GetVoxel(int x, int y, int z);
@@ -18,6 +21,8 @@ namespace REALM::Engine
         bool TrySpawnWater(int x, int y, int z);
         bool TryAddSoilAboveSurface(int x, int z);
         bool TryEraseSurface(int x, int z);
+        bool TryGetSurfaceHeight(int x, int z, float& height) const;
+        bool TryEraseSphere(float centerX, float centerZ, int radius);
         bool IsTerrainDirty() const { return terrainDirty_; }
         void MarkTerrainDirty() { terrainDirty_ = true; }
         void MarkTerrainClean() { terrainDirty_ = false; }
