@@ -1,4 +1,5 @@
 {
     "cmake.sourceDirectory": "${workspaceFolder}\\REALM\\REALM.Native",
-    "cmake.useCMakePresets": "always"
+    "cmake.useCMakePresets": "always",
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools"
 }

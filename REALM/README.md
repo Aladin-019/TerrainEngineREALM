@@ -4,16 +4,22 @@ R.E.A.L.M. = REALM Environment Automation & Landscape Modeling.
 
 Sandbox for building 3D geological terrains, and automating natural processes.
 
-## Stack
-- C++ for engine, simulation, and renderer core
-- OpenGL for terrain rendering and visualization
-- C# for User Interface
+## Controls
 
-## Native build
-This project is compiled directly with MinGW and Win32 OpenGL.
+- **A/D**: orbit the terrain.
+- **W/S**: tilt the camera.
+- **Up/Down** or the **mouse wheel**: zoom.
+- Select the type of **Material** or  **Brush** in toolbar, then **double-click and hold the
+  left mouse button**, dragging over terrain to deposit material or erase material. 
+- **Escape** or closing the window: exit.
 
-```bat
-cd REALM.Native
-mkdir build
-g++ -std=c++17 -O2 -I src src/App/main.cpp src/Engine/VoxelGrid.cpp src/Renderer/OpenGLRenderer.cpp -o build\REALM.exe -lopengl32 -lglu32 -lgdi32 -luser32
-```
+## User prerequisites (Windows x64)
+
+- A 64-bit Windows PC.
+- A graphics card and driver supporting desktop OpenGL 2.1 or newer,
+  including compatibility with older OpenGL features.
+
+## Running the application
+
+Open `TerrainEngineREALM.exe` from the application folder. Keep all included
+files and subfolders together; do not move the executable out on its own.
