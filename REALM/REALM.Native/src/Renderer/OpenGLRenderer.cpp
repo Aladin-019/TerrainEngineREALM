@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 
 namespace
 {
@@ -48,10 +49,10 @@ void OpenGLRenderer::SetBrushMode(BrushMode mode)
     brushClock_.invalidate();
 }
 
-void OpenGLRenderer::SetEraseRadius(int radius)
+void OpenGLRenderer::SetBrushRadius(int radius)
 {
-    eraseRadius_ = std::clamp(radius, REALM::Engine::VoxelGrid::MinEraseRadius,
-        REALM::Engine::VoxelGrid::MaxEraseRadius);
+    brushRadius_ = std::clamp(radius, REALM::Engine::VoxelGrid::MinBrushRadius,
+        REALM::Engine::VoxelGrid::MaxBrushRadius);
     brushActive_ = false;
     leftMouseDown_ = false;
     brushClock_.invalidate();
@@ -201,7 +202,7 @@ void OpenGLRenderer::AddFace(const Vec3& a, const Vec3& b, const Vec3& c, const 
 void OpenGLRenderer::AddFaceRight(int x, int y, int z)
 {
     const auto voxel = world_.GetVoxel(x, y, z);
-    const auto color = GetColorForType(static_cast<int>(voxel.Material), static_cast<float>(y) / static_cast<float>(world_.Height()));
+    const auto color = GetColorForType(voxel.Material, static_cast<float>(y) / static_cast<float>(world_.Height()));
     AddFace({static_cast<float>(x + 1), static_cast<float>(y), static_cast<float>(z)},
             {static_cast<float>(x + 1), static_cast<float>(y + 1), static_cast<float>(z)},
             {static_cast<float>(x + 1), static_cast<float>(y + 1), static_cast<float>(z + 1)},
@@ -212,7 +213,7 @@ void OpenGLRenderer::AddFaceRight(int x, int y, int z)
 void OpenGLRenderer::AddFaceLeft(int x, int y, int z)
 {
     const auto voxel = world_.GetVoxel(x, y, z);
-    const auto color = GetColorForType(static_cast<int>(voxel.Material), static_cast<float>(y) / static_cast<float>(world_.Height()));
+    const auto color = GetColorForType(voxel.Material, static_cast<float>(y) / static_cast<float>(world_.Height()));
     AddFace({static_cast<float>(x), static_cast<float>(y), static_cast<float>(z + 1)},
             {static_cast<float>(x), static_cast<float>(y + 1), static_cast<float>(z + 1)},
             {static_cast<float>(x), static_cast<float>(y + 1), static_cast<float>(z)},
@@ -223,7 +224,7 @@ void OpenGLRenderer::AddFaceLeft(int x, int y, int z)
 void OpenGLRenderer::AddFaceTop(int x, int y, int z)
 {
     const auto voxel = world_.GetVoxel(x, y, z);
-    const auto color = GetColorForType(static_cast<int>(voxel.Material), static_cast<float>(y) / static_cast<float>(world_.Height()));
+    const auto color = GetColorForType(voxel.Material, static_cast<float>(y) / static_cast<float>(world_.Height()));
     AddFace({static_cast<float>(x), static_cast<float>(y + 1), static_cast<float>(z)},
             {static_cast<float>(x + 1), static_cast<float>(y + 1), static_cast<float>(z)},
             {static_cast<float>(x + 1), static_cast<float>(y + 1), static_cast<float>(z + 1)},
@@ -234,7 +235,7 @@ void OpenGLRenderer::AddFaceTop(int x, int y, int z)
 void OpenGLRenderer::AddFaceBottom(int x, int y, int z)
 {
     const auto voxel = world_.GetVoxel(x, y, z);
-    const auto color = GetColorForType(static_cast<int>(voxel.Material), static_cast<float>(y) / static_cast<float>(world_.Height()));
+    const auto color = GetColorForType(voxel.Material, static_cast<float>(y) / static_cast<float>(world_.Height()));
     AddFace({static_cast<float>(x), static_cast<float>(y), static_cast<float>(z + 1)},
             {static_cast<float>(x + 1), static_cast<float>(y), static_cast<float>(z + 1)},
             {static_cast<float>(x + 1), static_cast<float>(y), static_cast<float>(z)},
@@ -245,7 +246,7 @@ void OpenGLRenderer::AddFaceBottom(int x, int y, int z)
 void OpenGLRenderer::AddFaceFront(int x, int y, int z)
 {
     const auto voxel = world_.GetVoxel(x, y, z);
-    const auto color = GetColorForType(static_cast<int>(voxel.Material), static_cast<float>(y) / static_cast<float>(world_.Height()));
+    const auto color = GetColorForType(voxel.Material, static_cast<float>(y) / static_cast<float>(world_.Height()));
     AddFace({static_cast<float>(x), static_cast<float>(y), static_cast<float>(z + 1)},
             {static_cast<float>(x), static_cast<float>(y + 1), static_cast<float>(z + 1)},
             {static_cast<float>(x + 1), static_cast<float>(y + 1), static_cast<float>(z + 1)},
@@ -256,7 +257,7 @@ void OpenGLRenderer::AddFaceFront(int x, int y, int z)
 void OpenGLRenderer::AddFaceBack(int x, int y, int z)
 {
     const auto voxel = world_.GetVoxel(x, y, z);
-    const auto color = GetColorForType(static_cast<int>(voxel.Material), static_cast<float>(y) / static_cast<float>(world_.Height()));
+    const auto color = GetColorForType(voxel.Material, static_cast<float>(y) / static_cast<float>(world_.Height()));
     AddFace({static_cast<float>(x + 1), static_cast<float>(y), static_cast<float>(z)},
             {static_cast<float>(x + 1), static_cast<float>(y + 1), static_cast<float>(z)},
             {static_cast<float>(x), static_cast<float>(y + 1), static_cast<float>(z)},
@@ -264,18 +265,23 @@ void OpenGLRenderer::AddFaceBack(int x, int y, int z)
             color);
 }
 
-OpenGLRenderer::Vec3 OpenGLRenderer::GetColorForType(int type, float height)
+OpenGLRenderer::Vec3 OpenGLRenderer::GetColorForType(REALM::Engine::CellMaterial type, float height)
 {
+    using REALM::Engine::CellMaterial;
     switch (type)
     {
-    case 0:
-        return {0.12f + height * 0.04f, 0.38f + height * 0.02f, 0.18f};
-    case 1:
+    case CellMaterial::Soil:
+        return {0.34f + height * 0.04f, 0.21f + height * 0.02f, 0.10f};
+    case CellMaterial::Vegetation:
+        return {0.10f, 0.26f, 0.12f};
+    case CellMaterial::Sand:
         return {0.72f, 0.64f, 0.36f};
-    case 4:
+    case CellMaterial::Water:
         return {0.20f, 0.48f, 0.90f};
-    default:
+    case CellMaterial::Rock:
         return {0.42f, 0.44f, 0.46f};
+    default:
+        throw std::invalid_argument("Unsupported terrain material color.");
     }
 }
 
@@ -364,7 +370,7 @@ bool OpenGLRenderer::FindWorldPointUnderCursor(float& outX, float& outY, float& 
     return true;
 }
 
-bool OpenGLRenderer::FindEraseCenter(Vec3& center) const
+bool OpenGLRenderer::FindBrushCenter(Vec3& center) const
 {
     if (!FindWorldPointUnderCursor(center.x, center.y, center.z) ||
         center.x < 0.0f || center.x >= world_.Width() ||
@@ -376,7 +382,7 @@ bool OpenGLRenderer::FindEraseCenter(Vec3& center) const
         static_cast<int>(center.z), center.y);
 }
 
-void OpenGLRenderer::DrawErasePreview(const Vec3& center)
+void OpenGLRenderer::DrawBrushPreview(const Vec3& center)
 {
     glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_LINE_BIT | GL_DEPTH_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST);
@@ -389,8 +395,8 @@ void OpenGLRenderer::DrawErasePreview(const Vec3& center)
         for (int segment = 0; segment < 64; ++segment)
         {
             const float angle = segment * 2.0f * 3.14159265f / 64.0f;
-            const float a = std::cos(angle) * eraseRadius_;
-            const float b = std::sin(angle) * eraseRadius_;
+            const float a = std::cos(angle) * brushRadius_;
+            const float b = std::sin(angle) * brushRadius_;
             if (plane == 0)
                 glVertex3f(center.x + a, center.y, center.z + b);
             else if (plane == 1)
@@ -405,62 +411,34 @@ void OpenGLRenderer::DrawErasePreview(const Vec3& center)
 
 void OpenGLRenderer::ApplyBrushFromCursor()
 {
-    if (!brushActive_ || !leftMouseDown_)
-        return;
-
-    if (brushMode_ == BrushMode::Water)
-    {
-        EmitWaterFromCursor();
-        return;
-    }
-
-    if ((brushMode_ != BrushMode::Soil && brushMode_ != BrushMode::Erase) ||
+    if (!brushActive_ || !leftMouseDown_ || brushMode_ == BrushMode::None ||
         (brushClock_.isValid() && brushClock_.elapsed() < 100))
+        return;
+
+    Vec3 center;
+    if (!FindBrushCenter(center))
         return;
 
     if (brushMode_ == BrushMode::Erase)
     {
-        Vec3 center;
-        if (FindEraseCenter(center) &&
-            world_.TryEraseSphere(center.x, center.z, eraseRadius_))
+        if (world_.TryEraseSphere(center.x, center.z, brushRadius_))
             brushClock_.start();
         return;
     }
 
-    float worldX = 0.0f;
-    float worldY = 0.0f;
-    float worldZ = 0.0f;
-    if (!FindWorldPointUnderCursor(worldX, worldY, worldZ))
-        return;
-
-    const int x = static_cast<int>(std::floor(worldX));
-    const int z = static_cast<int>(std::floor(worldZ));
-    if (world_.TryAddSoilAboveSurface(x, z))
-        brushClock_.start();
-}
-
-void OpenGLRenderer::EmitWaterFromCursor()
-{
-    float worldX = 0.0f;
-    float worldY = 0.0f;
-    float worldZ = 0.0f;
-    if (!FindWorldPointUnderCursor(worldX, worldY, worldZ))
-        return;
-
-    const int centerX = std::max(1, std::min(world_.Width() - 2, static_cast<int>(std::floor(worldX))));
-    const int centerZ = std::max(1, std::min(world_.Depth() - 2, static_cast<int>(std::floor(worldZ))));
-    const int spawnY = std::max(1, std::min(world_.Height() - 2, static_cast<int>(std::floor(worldY)) + 2));
-
-    for (int ox = 0; ox <= 0; ++ox)
+    using REALM::Engine::CellMaterial;
+    CellMaterial material;
+    switch (brushMode_)
     {
-        for (int oz = 0; oz <= 0; ++oz)
-        {
-            for (int oy = 0; oy < 1; ++oy)
-            {
-                world_.TrySpawnWater(centerX + ox, spawnY + oy, centerZ + oz);
-            }
-        }
+    case BrushMode::Soil: material = CellMaterial::Soil; break;
+    case BrushMode::Water: material = CellMaterial::Water; break;
+    case BrushMode::Rock: material = CellMaterial::Rock; break;
+    case BrushMode::Sand: material = CellMaterial::Sand; break;
+    case BrushMode::Vegetation: material = CellMaterial::Vegetation; break;
+    default: throw std::invalid_argument("Unsupported material brush mode.");
     }
+    if (world_.TryDepositSphere(center.x, center.z, brushRadius_, material))
+        brushClock_.start();
 }
 
 void OpenGLRenderer::paintGL()
@@ -501,9 +479,9 @@ void OpenGLRenderer::paintGL()
     }
     glEnd();
 
-    Vec3 eraseCenter;
-    const bool showErasePreview = brushMode_ == BrushMode::Erase && FindEraseCenter(eraseCenter);
+    Vec3 brushCenter;
+    const bool showBrushPreview = brushMode_ != BrushMode::None && FindBrushCenter(brushCenter);
     ApplyBrushFromCursor();
-    if (showErasePreview)
-        DrawErasePreview(eraseCenter);
+    if (showBrushPreview)
+        DrawBrushPreview(brushCenter);
 }

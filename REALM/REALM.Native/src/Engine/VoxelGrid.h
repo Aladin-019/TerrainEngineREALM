@@ -8,8 +8,8 @@ namespace REALM::Engine
     class VoxelGrid
     {
     public:
-        static constexpr int MinEraseRadius = 1;
-        static constexpr int MaxEraseRadius = 16;
+        static constexpr int MinBrushRadius = 1;
+        static constexpr int MaxBrushRadius = 16;
 
         VoxelGrid(int width, int height, int depth);
 
@@ -18,11 +18,9 @@ namespace REALM::Engine
         bool HasVoxel(int x, int y, int z) const;
         bool IsVisible(int x, int y, int z) const;
         bool IsSolid(int x, int y, int z) const;
-        bool TrySpawnWater(int x, int y, int z);
-        bool TryAddSoilAboveSurface(int x, int z);
-        bool TryEraseSurface(int x, int z);
         bool TryGetSurfaceHeight(int x, int z, float& height) const;
         bool TryEraseSphere(float centerX, float centerZ, int radius);
+        bool TryDepositSphere(float centerX, float centerZ, int radius, CellMaterial material);
         bool IsTerrainDirty() const { return terrainDirty_; }
         void MarkTerrainDirty() { terrainDirty_ = true; }
         void MarkTerrainClean() { terrainDirty_ = false; }
@@ -37,6 +35,7 @@ namespace REALM::Engine
         int Depth() const { return depth_; }
 
     private:
+        bool TryApplySphere(float centerX, float centerZ, int radius, const Voxel* deposit);
         bool InBounds(int x, int y, int z) const;
         bool CanMoveTo(int x, int y, int z) const;
         void MoveVoxel(int fromX, int fromY, int fromZ, int toX, int toY, int toZ);

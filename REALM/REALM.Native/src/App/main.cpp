@@ -32,27 +32,30 @@ int main(int argc, char* argv[])
     brushSelector->addItem(QStringLiteral("Navigate"), static_cast<int>(OpenGLRenderer::BrushMode::None));
     brushSelector->addItem(QStringLiteral("Soil"), static_cast<int>(OpenGLRenderer::BrushMode::Soil));
     brushSelector->addItem(QStringLiteral("Water"), static_cast<int>(OpenGLRenderer::BrushMode::Water));
+    brushSelector->addItem(QStringLiteral("Rock"), static_cast<int>(OpenGLRenderer::BrushMode::Rock));
+    brushSelector->addItem(QStringLiteral("Sand"), static_cast<int>(OpenGLRenderer::BrushMode::Sand));
+    brushSelector->addItem(QStringLiteral("Vegetation"), static_cast<int>(OpenGLRenderer::BrushMode::Vegetation));
     brushSelector->addItem(QStringLiteral("Erase"), static_cast<int>(OpenGLRenderer::BrushMode::Erase));
     brushSelector->setToolTip(QStringLiteral("Select a brush, then double-click, hold and drag over terrain"));
     brushToolbar->addWidget(brushSelector);
-    auto* radiusLabel = new QLabel(QStringLiteral(" Erase radius: "), brushToolbar);
+    auto* radiusLabel = new QLabel(QStringLiteral(" Brush radius: "), brushToolbar);
     brushToolbar->addWidget(radiusLabel);
     auto* radiusSelector = new QSpinBox(brushToolbar);
-    radiusSelector->setRange(REALM::Engine::VoxelGrid::MinEraseRadius,
-        REALM::Engine::VoxelGrid::MaxEraseRadius);
-    radiusSelector->setValue(viewport->EraseRadius());
+    radiusSelector->setRange(REALM::Engine::VoxelGrid::MinBrushRadius,
+        REALM::Engine::VoxelGrid::MaxBrushRadius);
+    radiusSelector->setValue(viewport->BrushRadius());
     radiusSelector->setSuffix(QStringLiteral(" voxels"));
-    radiusSelector->setToolTip(QStringLiteral("Radius of the spherical eraser"));
+    radiusSelector->setToolTip(QStringLiteral("Radius of the spherical material or erase brush"));
     radiusSelector->setEnabled(false);
     radiusLabel->setBuddy(radiusSelector);
     brushToolbar->addWidget(radiusSelector);
     QObject::connect(radiusSelector, &QSpinBox::valueChanged, viewport,
-        [viewport](int radius) { viewport->SetEraseRadius(radius); });
+        [viewport](int radius) { viewport->SetBrushRadius(radius); });
     QObject::connect(brushSelector, &QComboBox::currentIndexChanged, viewport,
         [viewport, brushSelector, radiusSelector](int) {
             const auto mode = static_cast<OpenGLRenderer::BrushMode>(brushSelector->currentData().toInt());
             viewport->SetBrushMode(mode);
-            radiusSelector->setEnabled(mode == OpenGLRenderer::BrushMode::Erase);
+            radiusSelector->setEnabled(mode != OpenGLRenderer::BrushMode::None);
             viewport->setFocus();
         });
     window.statusBar()->showMessage(QStringLiteral(

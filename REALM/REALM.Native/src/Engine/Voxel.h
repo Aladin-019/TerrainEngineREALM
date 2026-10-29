@@ -7,8 +7,8 @@ namespace REALM::Engine
         Soil,
         Sand,
         Rock,
-        Dirt,
-        Water
+        Water,
+        Vegetation
     };
 
     struct Voxel

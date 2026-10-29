@@ -2,28 +2,37 @@
 
 #include <cmath>
 #include <algorithm>
+#include <stdexcept>
 
 namespace
 {
-    template <typename T>
-    T Clamp(T value, T minValue, T maxValue)
+    REALM::Engine::Voxel CreateMaterialVoxel(REALM::Engine::CellMaterial material)
     {
-        return std::max(minValue, std::min(value, maxValue));
-    }
+        using REALM::Engine::CellMaterial;
+        switch (material)
+        {
+        case CellMaterial::Soil:
+        case CellMaterial::Sand:
+        case CellMaterial::Rock:
+        case CellMaterial::Water:
+        case CellMaterial::Vegetation:
+            break;
+        default:
+            throw std::invalid_argument("Unsupported brush material.");
+        }
 
-    REALM::Engine::Voxel CreateWaterVoxel()
-    {
-        REALM::Engine::Voxel water;
-        water.Material = REALM::Engine::CellMaterial::Water;
-        water.IsVisible = true;
-        water.IsSolid = false;
-        water.HasVolume = true;
-        water.Density = 1.0f;
-        water.Moisture = 1.0f;
-        water.Temperature = 12.0f;
-        water.Porosity = 0.0f;
-        water.Compressibility = 0.8f;
-        return water;
+        const bool water = material == CellMaterial::Water;
+        REALM::Engine::Voxel voxel;
+        voxel.Material = material;
+        voxel.IsVisible = true;
+        voxel.IsSolid = !water;
+        voxel.HasVolume = true;
+        voxel.Density = 1.0f;
+        voxel.Moisture = water ? 1.0f : 0.15f;
+        voxel.Temperature = water ? 12.0f : 10.0f;
+        voxel.Porosity = water ? 0.0f : 0.2f;
+        voxel.Compressibility = water ? 0.8f : 0.15f;
+        return voxel;
     }
 }
 
@@ -69,67 +78,6 @@ namespace REALM::Engine
         return GetVoxel(x, y, z).IsSolid;
     }
 
-    bool VoxelGrid::TrySpawnWater(int x, int y, int z)
-    {
-        if (!CanMoveTo(x, y, z))
-            return false;
-
-        GetVoxel(x, y, z) = CreateWaterVoxel();
-        MarkTerrainDirty();
-        return true;
-    }
-
-    bool VoxelGrid::TryAddSoilAboveSurface(int x, int z)
-    {
-        if (!InBounds(x, 0, z))
-            return false;
-
-        for (int y = height_ - 1; y >= 0; --y)
-        {
-            const Voxel& surface = GetVoxel(x, y, z);
-            if (!surface.IsVisible && !surface.IsSolid && !surface.HasVolume)
-                continue;
-
-            if (!CanMoveTo(x, y + 1, z))
-                return false;
-
-            Voxel soil;
-            soil.Material = CellMaterial::Soil;
-            soil.IsVisible = true;
-            soil.IsSolid = true;
-            soil.HasVolume = true;
-            soil.Density = 1.0f;
-            soil.Moisture = 0.15f;
-            soil.Temperature = 10.0f;
-            soil.Porosity = 0.2f;
-            soil.Compressibility = 0.15f;
-            GetVoxel(x, y + 1, z) = soil;
-            MarkTerrainDirty();
-            return true;
-        }
-
-        return false;
-    }
-
-    bool VoxelGrid::TryEraseSurface(int x, int z)
-    {
-        if (!InBounds(x, 0, z))
-            return false;
-
-        for (int y = height_ - 1; y >= 0; --y)
-        {
-            Voxel& surface = GetVoxel(x, y, z);
-            if (!surface.IsVisible && !surface.IsSolid && !surface.HasVolume)
-                continue;
-
-            surface = Voxel{};
-            MarkTerrainDirty();
-            return true;
-        }
-
-        return false;
-    }
-
     bool VoxelGrid::TryGetSurfaceHeight(int x, int z, float& height) const
     {
         if (!InBounds(x, 0, z))
@@ -149,9 +97,20 @@ namespace REALM::Engine
 
     bool VoxelGrid::TryEraseSphere(float centerX, float centerZ, int radius)
     {
+        return TryApplySphere(centerX, centerZ, radius, nullptr);
+    }
+
+    bool VoxelGrid::TryDepositSphere(float centerX, float centerZ, int radius, CellMaterial material)
+    {
+        const Voxel deposit = CreateMaterialVoxel(material);
+        return TryApplySphere(centerX, centerZ, radius, &deposit);
+    }
+
+    bool VoxelGrid::TryApplySphere(float centerX, float centerZ, int radius, const Voxel* deposit)
+    {
         if (!std::isfinite(centerX) || !std::isfinite(centerZ) ||
             centerX < 0.0f || centerX >= width_ || centerZ < 0.0f || centerZ >= depth_ ||
-            radius < MinEraseRadius || radius > MaxEraseRadius)
+            radius < MinBrushRadius || radius > MaxBrushRadius)
             return false;
 
         float centerY = 0.0f;
@@ -167,8 +126,12 @@ namespace REALM::Engine
         const float radiusSquared = static_cast<float>(radius * radius);
         bool changed = false;
         for (int x = minX; x <= maxX; ++x)
-            for (int y = minY; y <= maxY; ++y)
-                for (int z = minZ; z <= maxZ; ++z)
+            for (int z = minZ; z <= maxZ; ++z)
+            {
+                float columnHeight = 0.0f;
+                if (deposit)
+                    TryGetSurfaceHeight(x, z, columnHeight);
+                for (int y = minY; y <= maxY; ++y)
                 {
                     const float dx = x + 0.5f - centerX;
                     const float dy = y + 0.5f - centerY;
@@ -177,12 +140,22 @@ namespace REALM::Engine
                         continue;
 
                     Voxel& voxel = GetVoxel(x, y, z);
-                    if (!voxel.IsVisible && !voxel.IsSolid && !voxel.HasVolume)
-                        continue;
-
-                    voxel = Voxel{};
+                    if (deposit)
+                    {
+                        // Only the upper hemisphere, above each column's pre-stroke surface.
+                        if (dy < 0.0f || y < columnHeight || !CanMoveTo(x, y, z))
+                            continue;
+                        voxel = *deposit;
+                    }
+                    else
+                    {
+                        if (!voxel.IsVisible && !voxel.IsSolid && !voxel.HasVolume)
+                            continue;
+                        voxel = Voxel{};
+                    }
                     changed = true;
                 }
+            }
 
         if (changed)
             MarkTerrainDirty();
@@ -193,38 +166,12 @@ namespace REALM::Engine
     {
         terrainDirty_ = true;
 
-        const int baseDepth = std::max(1, height_ / 3);
-        const int centerX = width_ / 2;
-        const int centerZ = depth_ / 2;
-
+        std::fill(voxels_.begin(), voxels_.end(), Voxel{});
+        const int slabThickness = std::min(3, height_);
         for (int x = 0; x < width_; ++x)
-        {
             for (int z = 0; z < depth_; ++z)
-            {
-                const float dx = static_cast<float>(x - centerX) / static_cast<float>(std::max(1, width_ / 2));
-                const float dz = static_cast<float>(z - centerZ) / static_cast<float>(std::max(1, depth_ / 2));
-                const float hill = 18.0f * std::exp(-(((x - (width_ * 0.28f)) * (x - (width_ * 0.28f))) + ((z - (depth_ * 0.5f)) * (z - (depth_ * 0.5f)))) / 180.0f);
-                const float trough = -22.0f * std::exp(-(((x - (width_ * 0.72f)) * (x - (width_ * 0.72f))) + ((z - (depth_ * 0.5f)) * (z - (depth_ * 0.5f)))) / 90.0f);
-                const float ridge = std::sin((x * 0.3f) + 1.0f) * 1.8f + std::cos((z * 0.4f) - 0.6f) * 1.8f;
-                const int topY = Clamp(static_cast<int>(baseDepth + hill + trough + ridge), 1, height_ - 1);
-
-                for (int y = 0; y <= topY; ++y)
-                {
-                    Voxel voxel;
-                    voxel.Material = (y < baseDepth) ? CellMaterial::Rock : CellMaterial::Soil;
-                    voxel.IsVisible = true;
-                    voxel.IsSolid = true;
-                    voxel.HasVolume = true;
-                    voxel.Density = 1.0f;
-                    voxel.Moisture = 0.15f;
-                    voxel.Temperature = 10.0f;
-                    voxel.Porosity = 0.2f;
-                    voxel.Compressibility = 0.15f;
-                    GetVoxel(x, y, z) = voxel;
-                }
-            }
-        }
-
+                for (int y = 0; y < slabThickness; ++y)
+                    GetVoxel(x, y, z) = CreateMaterialVoxel(CellMaterial::Rock);
     }
 
     void VoxelGrid::UpdateSimulation(float deltaTime)
@@ -242,6 +189,8 @@ namespace REALM::Engine
                     switch (voxel.Material)
                     {
                     case CellMaterial::Soil:
+                    case CellMaterial::Sand:
+                    case CellMaterial::Vegetation:
                         UpdateSoil(x, y, z);
                         break;
 
@@ -276,9 +225,7 @@ namespace REALM::Engine
 
     void VoxelGrid::UpdateRock(int x, int y, int z)
     {
-        (void)x;
-        (void)y;
-        (void)z;
+        UpdateSoil(x, y, z);
     }
 
     void VoxelGrid::UpdateWater(int x, int y, int z)

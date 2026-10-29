@@ -18,13 +18,16 @@ public:
         None,
         Soil,
         Water,
-        Erase
+        Erase,
+        Rock,
+        Sand,
+        Vegetation
     };
 
     explicit OpenGLRenderer(QWidget* parent = nullptr);
     void SetBrushMode(BrushMode mode);
-    void SetEraseRadius(int radius);
-    int EraseRadius() const { return eraseRadius_; }
+    void SetBrushRadius(int radius);
+    int BrushRadius() const { return brushRadius_; }
 
 protected:
     void initializeGL() override;
@@ -59,11 +62,10 @@ private:
 
     void UpdateCamera(float deltaSeconds);
     void BuildTerrainMesh();
-    void EmitWaterFromCursor();
     void ApplyBrushFromCursor();
     bool FindWorldPointUnderCursor(float& outX, float& outY, float& outZ) const;
-    bool FindEraseCenter(Vec3& center) const;
-    void DrawErasePreview(const Vec3& center);
+    bool FindBrushCenter(Vec3& center) const;
+    void DrawBrushPreview(const Vec3& center);
     void AddFace(const Vec3& a, const Vec3& b, const Vec3& c, const Vec3& d, const Vec3& color);
     void AddFaceRight(int x, int y, int z);
     void AddFaceLeft(int x, int y, int z);
@@ -71,7 +73,7 @@ private:
     void AddFaceBottom(int x, int y, int z);
     void AddFaceFront(int x, int y, int z);
     void AddFaceBack(int x, int y, int z);
-    static Vec3 GetColorForType(int type, float height);
+    static Vec3 GetColorForType(REALM::Engine::CellMaterial type, float height);
     QTimer frameTimer_;
     QElapsedTimer frameClock_;
     QElapsedTimer brushClock_;
@@ -87,7 +89,7 @@ private:
     bool leftMouseDown_ = false;
     QPointF mousePosition_;
     bool cursorInViewport_ = false;
-    int eraseRadius_ = 3;
+    int brushRadius_ = 3;
     REALM::Engine::VoxelGrid world_;
     std::vector<Vertex> terrainVertices_;
     std::vector<unsigned int> terrainIndices_;
